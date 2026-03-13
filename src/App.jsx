@@ -202,7 +202,7 @@ export default function App() {
   const [sessionToken, setSessionToken] = useState(safeId());
 
   const [start, setStart] = useState({
-    label: "Junction Drugs Fort Lee",
+    label: "",
     placeId: "",
     suggestions: [],
     loading: false,
@@ -505,7 +505,7 @@ export default function App() {
 
   function resetAll() {
     setStart({
-      label: "Junction Drugs Fort Lee",
+      label: "",
       placeId: "",
       suggestions: [],
       loading: false,
