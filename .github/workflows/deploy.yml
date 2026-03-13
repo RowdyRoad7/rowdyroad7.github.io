@@ -34,7 +34,7 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          VITE_GOOGLE_MAPS_KEY: "${{ secrets.VITE_GOOGLE_MAPS_KEY }}"
+          VITE_GOOGLE_MAPS_KEY: ${{ secrets.VITE_GOOGLE_MAPS_KEY }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: "${{ steps.deployment.outputs.page_url }}"
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Deploy
         id: deployment
