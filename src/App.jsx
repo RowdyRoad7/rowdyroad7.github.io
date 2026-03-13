@@ -5,6 +5,9 @@ const STORAGE_KEY = "kush-route-planner-google-v1";
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY;
 console.log("KEY RAW:", API_KEY);
 
+function safeId() {
+  return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+}
 
 function buildMapsDirLink(origin, destination, waypoints = []) {
   const params = new URLSearchParams({
@@ -20,7 +23,7 @@ function buildMapsDirLink(origin, destination, waypoints = []) {
 
 function newStop() {
   return {
-    id: crypto.randomUUID(),
+    id: safeId(),
     label: "",
     placeId: "",
     suggestions: [],
@@ -32,20 +35,23 @@ function newStop() {
 async function fetchPlaceSuggestions(input, sessionToken) {
   if (!input.trim()) return [];
 
-  const res = await fetch("https://places.googleapis.com/v1/places:autocomplete", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Goog-Api-Key": API_KEY,
-      "X-Goog-FieldMask":
-        "suggestions.placePrediction.placeId,suggestions.placePrediction.text,suggestions.placePrediction.structuredFormat",
+  const res = await fetch(
+    "https://places.googleapis.com/v1/places:autocomplete",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": API_KEY,
+        "X-Goog-FieldMask":
+          "suggestions.placePrediction.placeId,suggestions.placePrediction.text,suggestions.placePrediction.structuredFormat",
+      },
+      body: JSON.stringify({
+        input,
+        sessionToken,
+        includedRegionCodes: ["us"],
+      }),
     },
-    body: JSON.stringify({
-      input,
-      sessionToken,
-      includedRegionCodes: ["us"],
-    }),
-  });
+  );
 
   const data = await res.json();
   console.log("AUTOCOMPLETE RESPONSE", data);
@@ -65,24 +71,36 @@ async function fetchPlaceSuggestions(input, sessionToken) {
     }));
 }
 
-async function computeOptimizedRoute(origin, stops, regionCode = "us") {
-  let best = null;
+async function computeOptimizedRoute(origin, destination, stops, regionCode = "us") {
+  const body = {
+    origin: {
+      // location: {
+      //   placeId: origin.placeId,
+      // },
+       placeId: origin.placeId,
+    },
+    destination: {
+      // location: {
+      //   placeId: destination.placeId,
+      // },
+      placeId: destination.placeId,
+    },
+    intermediates: stops.map((s) => ({
+      // location: {
+      //   placeId: s.placeId,
+      // },
+      placeId: s.placeId,
 
-  for (let destinationIndex = 0; destinationIndex < stops.length; destinationIndex += 1) {
-    const destination = stops[destinationIndex];
-    const intermediates = stops.filter((_, i) => i !== destinationIndex);
+    })),
+    travelMode: "DRIVE",
+    routingPreference: "TRAFFIC_AWARE",
+    optimizeWaypointOrder: true,
+    regionCode,
+  };
 
-    const body = {
-      origin: { placeId: origin.placeId },
-      destination: { placeId: destination.placeId },
-      intermediates: intermediates.map((s) => ({ placeId: s.placeId })),
-      travelMode: "DRIVE",
-      routingPreference: "TRAFFIC_AWARE",
-      optimizeWaypointOrder: true,
-      regionCode,
-    };
-
-    const res = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
+  const res = await fetch(
+    "https://routes.googleapis.com/directions/v2:computeRoutes",
+    {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -91,37 +109,30 @@ async function computeOptimizedRoute(origin, stops, regionCode = "us") {
           "routes.distanceMeters,routes.duration,routes.optimizedIntermediateWaypointIndex",
       },
       body: JSON.stringify(body),
-    });
+    },
+  );
 
-    const data = await res.json();
+  const data = await res.json();
 
-    if (!res.ok) {
-      throw new Error(data?.error?.message || "Route optimization failed");
-    }
-
-    const route = data.routes?.[0];
-    if (!route) continue;
-
-    const optimizedIndexes = route.optimizedIntermediateWaypointIndex || [];
-    const orderedIntermediates = optimizedIndexes.map((idx) => intermediates[idx]);
-
-    const candidateOrderedStops = [...orderedIntermediates, destination];
-    const candidateDistance = route.distanceMeters ?? Number.MAX_SAFE_INTEGER;
-
-    if (!best || candidateDistance < best.distanceMeters) {
-      best = {
-        orderedStops: candidateOrderedStops,
-        distanceMeters: candidateDistance,
-        duration: route.duration || "",
-      };
-    }
+  if (!res.ok) {
+    throw new Error(data?.error?.message || "Route optimization failed");
   }
 
-  if (!best) {
+  const route = data.routes?.[0];
+  if (!route) {
     throw new Error("No valid route returned");
   }
 
-  return best;
+  const optimizedIndexes = route.optimizedIntermediateWaypointIndex || [];
+  const orderedStops = optimizedIndexes.length
+    ? optimizedIndexes.map((idx) => stops[idx])
+    : stops;
+
+  return {
+    orderedStops,
+    distanceMeters: route.distanceMeters ?? null,
+    duration: route.duration || "",
+  };
 }
 
 function formatMetersToMiles(meters) {
@@ -177,7 +188,9 @@ function SuggestionDropdown({ suggestions, onPick }) {
         >
           <div style={{ fontSize: 14, fontWeight: 600 }}>{item.main}</div>
           {item.secondary ? (
-            <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>{item.secondary}</div>
+            <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>
+              {item.secondary}
+            </div>
           ) : null}
         </button>
       ))}
@@ -186,7 +199,7 @@ function SuggestionDropdown({ suggestions, onPick }) {
 }
 
 export default function App() {
-  const [sessionToken, setSessionToken] = useState(crypto.randomUUID());
+  const [sessionToken, setSessionToken] = useState(safeId());
 
   const [start, setStart] = useState({
     label: "Junction Drugs Fort Lee",
@@ -196,9 +209,20 @@ export default function App() {
     open: false,
   });
 
+  const [end, setEnd] = useState({
+    label: "",
+    placeId: "",
+    suggestions: [],
+    loading: false,
+    open: false,
+  });
+
   const [stops, setStops] = useState([newStop(), newStop(), newStop()]);
   const [ordered, setOrdered] = useState([]);
-  const [routeStats, setRouteStats] = useState({ distanceMeters: null, duration: "" });
+  const [routeStats, setRouteStats] = useState({
+    distanceMeters: null,
+    duration: "",
+  });
   const [loadingRoute, setLoadingRoute] = useState(false);
   const [error, setError] = useState("");
 
@@ -210,6 +234,7 @@ export default function App() {
 
     try {
       const parsed = JSON.parse(raw);
+
       if (parsed.start) {
         setStart((prev) => ({
           ...prev,
@@ -217,16 +242,26 @@ export default function App() {
           placeId: parsed.start.placeId || "",
         }));
       }
+
+      if (parsed.end) {
+        setEnd((prev) => ({
+          ...prev,
+          label: parsed.end.label || "",
+          placeId: parsed.end.placeId || "",
+        }));
+      }
+
       if (Array.isArray(parsed.stops) && parsed.stops.length) {
         setStops(
           parsed.stops.map((s) => ({
             ...newStop(),
-            id: s.id || crypto.randomUUID(),
+            id: s.id || safeId(),
             label: s.label || "",
             placeId: s.placeId || "",
-          }))
+          })),
         );
       }
+
       if (Array.isArray(parsed.ordered)) setOrdered(parsed.ordered);
       if (parsed.routeStats) setRouteStats(parsed.routeStats);
     } catch {
@@ -239,29 +274,39 @@ export default function App() {
       STORAGE_KEY,
       JSON.stringify({
         start: { label: start.label, placeId: start.placeId },
-        stops: stops.map((s) => ({ id: s.id, label: s.label, placeId: s.placeId })),
+        end: { label: end.label, placeId: end.placeId },
+        stops: stops.map((s) => ({
+          id: s.id,
+          label: s.label,
+          placeId: s.placeId,
+        })),
         ordered,
         routeStats,
-      })
+      }),
     );
-  }, [start, stops, ordered, routeStats]);
+  }, [start, end, stops, ordered, routeStats]);
 
   const activeStops = useMemo(
     () => stops.filter((s) => s.label.trim() !== ""),
-    [stops]
+    [stops],
   );
 
   const fullRouteLink = useMemo(() => {
-    if (!ordered.length) return "";
+    if (!ordered.length || !start.label || !end.label) return "";
     const origin = start.label;
-    const destination = ordered[ordered.length - 1].label;
-    const waypoints = ordered.slice(0, -1).map((s) => s.label);
+    const destination = end.label;
+    const waypoints = ordered.map((s) => s.label);
     return buildMapsDirLink(origin, destination, waypoints);
-  }, [ordered, start.label]);
+  }, [ordered, start.label, end.label]);
 
   async function triggerStartAutocomplete(value) {
     if (!value.trim()) {
-      setStart((prev) => ({ ...prev, suggestions: [], open: false, loading: false }));
+      setStart((prev) => ({
+        ...prev,
+        suggestions: [],
+        open: false,
+        loading: false,
+      }));
       return;
     }
 
@@ -275,7 +320,43 @@ export default function App() {
         loading: false,
       }));
     } catch (err) {
-      setStart((prev) => ({ ...prev, suggestions: [], open: false, loading: false }));
+      setStart((prev) => ({
+        ...prev,
+        suggestions: [],
+        open: false,
+        loading: false,
+      }));
+      setError(err.message || "Autocomplete failed");
+    }
+  }
+
+  async function triggerEndAutocomplete(value) {
+    if (!value.trim()) {
+      setEnd((prev) => ({
+        ...prev,
+        suggestions: [],
+        open: false,
+        loading: false,
+      }));
+      return;
+    }
+
+    setEnd((prev) => ({ ...prev, loading: true, open: true }));
+    try {
+      const suggestions = await fetchPlaceSuggestions(value, sessionToken);
+      setEnd((prev) => ({
+        ...prev,
+        suggestions,
+        open: true,
+        loading: false,
+      }));
+    } catch (err) {
+      setEnd((prev) => ({
+        ...prev,
+        suggestions: [],
+        open: false,
+        loading: false,
+      }));
       setError(err.message || "Autocomplete failed");
     }
   }
@@ -284,30 +365,32 @@ export default function App() {
     if (!value.trim()) {
       setStops((prev) =>
         prev.map((s) =>
-          s.id === id ? { ...s, suggestions: [], open: false, loading: false } : s
-        )
+          s.id === id
+            ? { ...s, suggestions: [], open: false, loading: false }
+            : s,
+        ),
       );
       return;
     }
 
     setStops((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, loading: true, open: true } : s))
+      prev.map((s) => (s.id === id ? { ...s, loading: true, open: true } : s)),
     );
 
     try {
       const suggestions = await fetchPlaceSuggestions(value, sessionToken);
       setStops((prev) =>
         prev.map((s) =>
-          s.id === id
-            ? { ...s, suggestions, open: true, loading: false }
-            : s
-        )
+          s.id === id ? { ...s, suggestions, open: true, loading: false } : s,
+        ),
       );
     } catch (err) {
       setStops((prev) =>
         prev.map((s) =>
-          s.id === id ? { ...s, suggestions: [], open: false, loading: false } : s
-        )
+          s.id === id
+            ? { ...s, suggestions: [], open: false, loading: false }
+            : s,
+        ),
       );
       setError(err.message || "Autocomplete failed");
     }
@@ -331,6 +414,24 @@ export default function App() {
     }, 250);
   }
 
+  function onEndChange(value) {
+    setError("");
+    setOrdered([]);
+    setRouteStats({ distanceMeters: null, duration: "" });
+
+    setEnd((prev) => ({
+      ...prev,
+      label: value,
+      placeId: "",
+      open: !!value.trim(),
+    }));
+
+    clearTimeout(debounceRefs.current.end);
+    debounceRefs.current.end = setTimeout(() => {
+      triggerEndAutocomplete(value);
+    }, 250);
+  }
+
   function onStopChange(id, value) {
     setError("");
     setOrdered([]);
@@ -340,8 +441,8 @@ export default function App() {
       prev.map((s) =>
         s.id === id
           ? { ...s, label: value, placeId: "", open: !!value.trim() }
-          : s
-      )
+          : s,
+      ),
     );
 
     clearTimeout(debounceRefs.current[id]);
@@ -359,7 +460,19 @@ export default function App() {
       open: false,
       loading: false,
     }));
-    setSessionToken(crypto.randomUUID());
+    setSessionToken(safeId());
+  }
+
+  function pickEnd(item) {
+    setEnd((prev) => ({
+      ...prev,
+      label: item.label,
+      placeId: item.placeId,
+      suggestions: [],
+      open: false,
+      loading: false,
+    }));
+    setSessionToken(safeId());
   }
 
   function pickStop(id, item) {
@@ -374,10 +487,10 @@ export default function App() {
               open: false,
               loading: false,
             }
-          : s
-      )
+          : s,
+      ),
     );
-    setSessionToken(crypto.randomUUID());
+    setSessionToken(safeId());
   }
 
   function addStop() {
@@ -398,11 +511,18 @@ export default function App() {
       loading: false,
       open: false,
     });
+    setEnd({
+      label: "",
+      placeId: "",
+      suggestions: [],
+      loading: false,
+      open: false,
+    });
     setStops([newStop(), newStop(), newStop()]);
     setOrdered([]);
     setRouteStats({ distanceMeters: null, duration: "" });
     setError("");
-    setSessionToken(crypto.randomUUID());
+    setSessionToken(safeId());
   }
 
   async function optimizeRoute() {
@@ -415,6 +535,11 @@ export default function App() {
 
     if (!start.placeId) {
       setError("Select the starting point from Google suggestions.");
+      return;
+    }
+
+    if (!end.placeId) {
+      setError("Select the ending point from Google suggestions.");
       return;
     }
 
@@ -432,7 +557,7 @@ export default function App() {
 
     try {
       setLoadingRoute(true);
-      const result = await computeOptimizedRoute(start, enteredStops);
+      const result = await computeOptimizedRoute(start, end, enteredStops);
       setOrdered(result.orderedStops);
       setRouteStats({
         distanceMeters: result.distanceMeters,
@@ -449,7 +574,8 @@ export default function App() {
     <div
       style={{
         minHeight: "100vh",
-        background: "linear-gradient(180deg, #020617 0%, #0f172a 50%, #020617 100%)",
+        background:
+          "linear-gradient(180deg, #020617 0%, #0f172a 50%, #020617 100%)",
         padding: "24px 16px",
         color: "#ffffff",
         fontFamily: "Inter, system-ui, sans-serif",
@@ -470,7 +596,14 @@ export default function App() {
           <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: -0.8 }}>
             Kush Route Planner
           </div>
-          <div style={{ marginTop: 8, fontSize: 14, color: "#dbeafe", lineHeight: 1.6 }}>
+          <div
+            style={{
+              marginTop: 8,
+              fontSize: 14,
+              color: "#dbeafe",
+              lineHeight: 1.6,
+            }}
+          >
             Google suggestions + route optimization in one page.
           </div>
         </div>
@@ -510,15 +643,28 @@ export default function App() {
               }}
             />
             {start.loading ? (
-              <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 8 }}>Loading suggestions...</div>
+              <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 8 }}>
+                Loading suggestions...
+              </div>
             ) : null}
             {start.open ? (
-              <SuggestionDropdown suggestions={start.suggestions} onPick={pickStart} />
+              <SuggestionDropdown
+                suggestions={start.suggestions}
+                onPick={pickStart}
+              />
             ) : null}
           </div>
 
-          <div style={{ marginTop: 8, fontSize: 12, color: start.placeId ? "#86efac" : "#94a3b8" }}>
-            {start.placeId ? "Validated with Google Places" : "Pick from suggestions to validate"}
+          <div
+            style={{
+              marginTop: 8,
+              fontSize: 12,
+              color: start.placeId ? "#86efac" : "#94a3b8",
+            }}
+          >
+            {start.placeId
+              ? "Validated with Google Places"
+              : "Pick from suggestions to validate"}
           </div>
         </div>
 
@@ -531,7 +677,73 @@ export default function App() {
             padding: 16,
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>
+            Ending Point
+          </div>
+
+          <div style={{ position: "relative" }}>
+            <input
+              value={end.label}
+              onChange={(e) => onEndChange(e.target.value)}
+              onFocus={() =>
+                end.suggestions.length &&
+                setEnd((prev) => ({ ...prev, open: true }))
+              }
+              placeholder="Enter ending location"
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: "14px 16px",
+                borderRadius: 14,
+                border: "1px solid rgba(255,255,255,0.1)",
+                background: "rgba(2,6,23,0.95)",
+                color: "#fff",
+                fontSize: 14,
+                outline: "none",
+              }}
+            />
+            {end.loading ? (
+              <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 8 }}>
+                Loading suggestions...
+              </div>
+            ) : null}
+            {end.open ? (
+              <SuggestionDropdown
+                suggestions={end.suggestions}
+                onPick={pickEnd}
+              />
+            ) : null}
+          </div>
+
+          <div
+            style={{
+              marginTop: 8,
+              fontSize: 12,
+              color: end.placeId ? "#86efac" : "#94a3b8",
+            }}
+          >
+            {end.placeId
+              ? "Validated with Google Places"
+              : "Pick from suggestions to validate"}
+          </div>
+        </div>
+
+        <div
+          style={{
+            marginBottom: 16,
+            borderRadius: 22,
+            border: "1px solid rgba(255,255,255,0.1)",
+            background: "rgba(255,255,255,0.05)",
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginBottom: 12,
+            }}
+          >
             <div style={{ fontSize: 14, fontWeight: 700 }}>Stops</div>
             <div style={{ fontSize: 12, color: "#94a3b8" }}>
               {activeStops.length} active / {MAX_STOPS}
@@ -558,7 +770,9 @@ export default function App() {
                     alignItems: "center",
                   }}
                 >
-                  <div style={{ fontSize: 12, color: "#94a3b8" }}>Stop {i + 1}</div>
+                  <div style={{ fontSize: 12, color: "#94a3b8" }}>
+                    Stop {i + 1}
+                  </div>
                   <button
                     type="button"
                     onClick={() => removeStop(stop.id)}
@@ -583,8 +797,8 @@ export default function App() {
                       stop.suggestions.length &&
                       setStops((prev) =>
                         prev.map((s) =>
-                          s.id === stop.id ? { ...s, open: true } : s
-                        )
+                          s.id === stop.id ? { ...s, open: true } : s,
+                        ),
                       )
                     }
                     placeholder={`Enter stop ${i + 1}`}
@@ -601,7 +815,9 @@ export default function App() {
                     }}
                   />
                   {stop.loading ? (
-                    <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 8 }}>
+                    <div
+                      style={{ fontSize: 12, color: "#94a3b8", marginTop: 8 }}
+                    >
                       Loading suggestions...
                     </div>
                   ) : null}
@@ -613,14 +829,29 @@ export default function App() {
                   ) : null}
                 </div>
 
-                <div style={{ marginTop: 8, fontSize: 12, color: stop.placeId ? "#86efac" : "#94a3b8" }}>
-                  {stop.placeId ? "Validated with Google Places" : "Pick from suggestions to validate"}
+                <div
+                  style={{
+                    marginTop: 8,
+                    fontSize: 12,
+                    color: stop.placeId ? "#86efac" : "#94a3b8",
+                  }}
+                >
+                  {stop.placeId
+                    ? "Validated with Google Places"
+                    : "Pick from suggestions to validate"}
                 </div>
               </div>
             ))}
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 14 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 10,
+              marginTop: 14,
+            }}
+          >
             <button
               type="button"
               onClick={addStop}
@@ -628,7 +859,10 @@ export default function App() {
               style={{
                 borderRadius: 16,
                 border: "1px solid rgba(255,255,255,0.1)",
-                background: stops.length >= MAX_STOPS ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.10)",
+                background:
+                  stops.length >= MAX_STOPS
+                    ? "rgba(255,255,255,0.04)"
+                    : "rgba(255,255,255,0.10)",
                 color: stops.length >= MAX_STOPS ? "#64748b" : "#fff",
                 padding: "14px 12px",
                 fontSize: 14,
@@ -709,7 +943,23 @@ export default function App() {
             </div>
 
             <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 12 }}>
-              Total: {formatMetersToMiles(routeStats.distanceMeters)} • {formatDuration(routeStats.duration)}
+              Total: {formatMetersToMiles(routeStats.distanceMeters)} •{" "}
+              {formatDuration(routeStats.duration)}
+            </div>
+
+            <div
+              style={{
+                borderRadius: 14,
+                border: "1px solid rgba(34,197,94,0.2)",
+                background: "rgba(21,128,61,0.12)",
+                padding: 12,
+                marginBottom: 10,
+              }}
+            >
+              <div style={{ fontSize: 11, color: "#86efac", marginBottom: 4 }}>
+                Start
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>{start.label}</div>
             </div>
 
             <div style={{ display: "grid", gap: 10 }}>
@@ -723,12 +973,31 @@ export default function App() {
                     padding: 12,
                   }}
                 >
-                  <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>
+                  <div
+                    style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}
+                  >
                     Stop {i + 1}
                   </div>
-                  <div style={{ fontSize: 14, fontWeight: 700 }}>{stop.label}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>
+                    {stop.label}
+                  </div>
                 </div>
               ))}
+            </div>
+
+            <div
+              style={{
+                borderRadius: 14,
+                border: "1px solid rgba(59,130,246,0.2)",
+                background: "rgba(30,64,175,0.12)",
+                padding: 12,
+                marginTop: 10,
+              }}
+            >
+              <div style={{ fontSize: 11, color: "#93c5fd", marginBottom: 4 }}>
+                End
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>{end.label}</div>
             </div>
 
             {fullRouteLink ? (
@@ -744,7 +1013,8 @@ export default function App() {
                   justifyContent: "center",
                   gap: 8,
                   borderRadius: 22,
-                  background: "linear-gradient(90deg, #22d3ee 0%, #3b82f6 100%)",
+                  background:
+                    "linear-gradient(90deg, #22d3ee 0%, #3b82f6 100%)",
                   color: "#020617",
                   padding: "16px 18px",
                   fontSize: 15,
