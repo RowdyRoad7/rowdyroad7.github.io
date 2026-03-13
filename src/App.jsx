@@ -238,7 +238,7 @@ export default function App() {
       if (parsed.start) {
         setStart((prev) => ({
           ...prev,
-          label: parsed.start.label || "Junction Drugs Fort Lee",
+          label: parsed.start.label || "",
           placeId: parsed.start.placeId || "",
         }));
       }
