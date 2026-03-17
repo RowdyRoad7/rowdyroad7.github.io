@@ -7,7 +7,7 @@ function formatMetersToMiles(meters) {
 
 function formatDuration(durationStr) {
   if (!durationStr) return "";
-  const seconds = Math.round(parseFloat(durationStr.replace("s", "")));
+  const seconds = Math.round(parseFloat(String(durationStr).replace("s", "")));
   if (Number.isNaN(seconds)) return durationStr;
 
   const hours = Math.floor(seconds / 3600);
@@ -15,6 +15,16 @@ function formatDuration(durationStr) {
 
   if (hours > 0) return `${hours}h ${mins}m`;
   return `${mins}m`;
+}
+
+function buildLiveLocationDirLink(destination) {
+  const params = new URLSearchParams({
+    api: "1",
+    destination,
+    travelmode: "driving",
+  });
+
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
 
 export default function ResultsPage({
@@ -25,7 +35,6 @@ export default function ResultsPage({
   fullRouteLink,
   goBackToForm,
   toggleStopDone,
-  buildMapsDirLink,
 }) {
   return (
     <>
@@ -60,8 +69,8 @@ export default function ResultsPage({
         </div>
 
         <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 12 }}>
-          Total: {formatMetersToMiles(routeStats.distanceMeters)} •{" "}
-          {formatDuration(routeStats.duration)}
+          Total: {formatMetersToMiles(routeStats?.distanceMeters)} •{" "}
+          {formatDuration(routeStats?.duration)}
         </div>
 
         <div
@@ -76,11 +85,13 @@ export default function ResultsPage({
           <div style={{ fontSize: 11, color: "#86efac", marginBottom: 4 }}>
             Start
           </div>
-          <div style={{ fontSize: 14, fontWeight: 700 }}>{start.label}</div>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>
+            {start?.label || "Starting point"}
+          </div>
         </div>
 
         <div style={{ display: "grid", gap: 10 }}>
-          {ordered.map((stop, i) => (
+          {ordered?.map((stop, i) => (
             <div
               key={stop.id}
               style={{
@@ -106,9 +117,16 @@ export default function ResultsPage({
                 {stop.label}
               </div>
 
-              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  marginTop: 8,
+                  flexWrap: "wrap",
+                }}
+              >
                 <a
-                  href={buildMapsDirLink(start.label, stop.label)}
+                  href={buildLiveLocationDirLink(stop.label)}
                   target="_blank"
                   rel="noreferrer"
                   style={{
@@ -136,7 +154,7 @@ export default function ResultsPage({
                     fontWeight: 700,
                   }}
                 >
-                  Orders: {stop.orders || "0"}
+                  Orders: {stop.orders || 0}
                 </div>
 
                 <button
@@ -176,7 +194,9 @@ export default function ResultsPage({
           <div style={{ fontSize: 11, color: "#93c5fd", marginBottom: 4 }}>
             End
           </div>
-          <div style={{ fontSize: 14, fontWeight: 700 }}>{end.label}</div>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>
+            {end?.label || "Final stop"}
+          </div>
         </div>
 
         {fullRouteLink ? (
