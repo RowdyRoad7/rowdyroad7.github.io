@@ -1,6 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import InputPage from "./InputPage";
 import ResultsPage from "./ResultsPage";
+import SignatureModal from "./SignatureModal";
+import DeliveriesPage from "./DeliveriesPage";
+import DelRxLogo from "./DelRxLogo";
+import AuthPage from "./AuthPage";
+import { useTheme } from "./theme";
+import { useAuth } from "./auth";
 
 const MAX_STOPS = 25;
 const STORAGE_KEY = "kush-route-planner-google-v1";
@@ -133,7 +139,10 @@ async function computeOptimizedRoute(
 }
 
 export default function App() {
+  const { t, mode, toggleTheme } = useTheme();
+  const { user, ready, logout } = useAuth();
   const [page, setPage] = useState("form");
+  const [signatureStop, setSignatureStop] = useState(null);
   const [sessionToken, setSessionToken] = useState(safeId());
 
   const [start, setStart] = useState({
@@ -440,6 +449,24 @@ export default function App() {
     );
   }
 
+  function setStopDone(id, value) {
+    setStops((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, done: value } : s)),
+    );
+    setOrdered((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, done: value } : s)),
+    );
+  }
+
+  function captureSignature(stop) {
+    setSignatureStop(stop);
+  }
+
+  function onSignatureSaved() {
+    if (signatureStop) setStopDone(signatureStop.id, true);
+    setSignatureStop(null);
+  }
+
   function stopMapsLink(stopLabel) {
     if (!start.label || !stopLabel) return "#";
     return buildMapsDirLink(start.label, stopLabel);
@@ -578,18 +605,113 @@ export default function App() {
     }
   }
 
+  const subtleBtnStyle = {
+    borderRadius: 14,
+    border: `1px solid ${t.subtleBorder}`,
+    background: t.subtleBg,
+    color: t.subtleText,
+    padding: "8px 14px",
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: "pointer",
+  };
+
+  if (!ready) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          background: t.pageBg,
+          color: t.textMuted,
+          fontFamily: "Inter, system-ui, sans-serif",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 14,
+        }}
+      >
+        Loading…
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthPage />;
+  }
+
   return (
     <div
       style={{
         minHeight: "100vh",
-        background:
-          "linear-gradient(180deg, #020617 0%, #0f172a 50%, #020617 100%)",
+        background: t.pageBg,
         padding: "24px 16px",
-        color: "#ffffff",
+        color: t.text,
         fontFamily: "Inter, system-ui, sans-serif",
+        transition: "background 0.2s ease, color 0.2s ease",
       }}
     >
-      <div style={{ maxWidth: 460, margin: "0 auto" }}>
+      <div
+        style={{
+          maxWidth: page === "deliveries" ? 960 : 460,
+          margin: "0 auto",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 8,
+            marginBottom: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              color: t.textMuted,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              maxWidth: 180,
+            }}
+            title={user.email || ""}
+          >
+            {user.email}
+          </div>
+
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {page !== "deliveries" ? (
+              <button
+                type="button"
+                onClick={() => setPage("deliveries")}
+                style={{
+                  ...subtleBtnStyle,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <DelRxLogo size={18} />
+                DelRx
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              title={
+                mode === "dark" ? "Switch to light mode" : "Switch to dark mode"
+              }
+              style={subtleBtnStyle}
+            >
+              {mode === "dark" ? "☀️ Light" : "🌙 Dark"}
+            </button>
+            <button type="button" onClick={logout} style={subtleBtnStyle}>
+              Logout
+            </button>
+          </div>
+        </div>
+
         {page === "form" ? (
           <InputPage
             MAX_STOPS={MAX_STOPS}
@@ -615,7 +737,7 @@ export default function App() {
             toggleStopDone={toggleStopDone}
             stopMapsLink={stopMapsLink}
           />
-        ) : (
+        ) : page === "results" ? (
           <ResultsPage
             start={start}
             end={end}
@@ -624,10 +746,21 @@ export default function App() {
             fullRouteLink={fullRouteLink}
             goBackToForm={goBackToForm}
             toggleStopDone={toggleStopDone}
+            captureSignature={captureSignature}
             buildMapsDirLink={buildMapsDirLink}
           />
+        ) : (
+          <DeliveriesPage goBack={() => setPage("form")} />
         )}
       </div>
+
+      {signatureStop ? (
+        <SignatureModal
+          stop={signatureStop}
+          onClose={() => setSignatureStop(null)}
+          onSaved={onSignatureSaved}
+        />
+      ) : null}
     </div>
   );
 }

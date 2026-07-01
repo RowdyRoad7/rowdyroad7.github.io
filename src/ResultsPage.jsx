@@ -1,4 +1,5 @@
 import React from "react";
+import { useTheme } from "./theme";
 
 function formatMetersToMiles(meters) {
   if (typeof meters !== "number") return "";
@@ -35,7 +36,10 @@ export default function ResultsPage({
   fullRouteLink,
   goBackToForm,
   toggleStopDone,
+  captureSignature,
 }) {
+  const { t } = useTheme();
+
   return (
     <>
       <button
@@ -44,9 +48,9 @@ export default function ResultsPage({
         style={{
           marginBottom: 16,
           borderRadius: 16,
-          border: "1px solid rgba(255,255,255,0.1)",
-          background: "rgba(255,255,255,0.06)",
-          color: "#e2e8f0",
+          border: `1px solid ${t.subtleBorder}`,
+          background: t.subtleBg,
+          color: t.subtleText,
           padding: "12px 14px",
           fontSize: 14,
           fontWeight: 700,
@@ -59,8 +63,8 @@ export default function ResultsPage({
       <div
         style={{
           borderRadius: 24,
-          border: "1px solid rgba(255,255,255,0.1)",
-          background: "rgba(255,255,255,0.05)",
+          border: `1px solid ${t.cardBorder}`,
+          background: t.cardBg,
           padding: 16,
         }}
       >
@@ -68,7 +72,7 @@ export default function ResultsPage({
           Optimized Route
         </div>
 
-        <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 12 }}>
+        <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 12 }}>
           Total: {formatMetersToMiles(routeStats?.distanceMeters)} •{" "}
           {formatDuration(routeStats?.duration)}
         </div>
@@ -76,13 +80,13 @@ export default function ResultsPage({
         <div
           style={{
             borderRadius: 14,
-            border: "1px solid rgba(34,197,94,0.2)",
-            background: "rgba(21,128,61,0.12)",
+            border: `1px solid ${t.successBorder}`,
+            background: t.successBg,
             padding: 12,
             marginBottom: 10,
           }}
         >
-          <div style={{ fontSize: 11, color: "#86efac", marginBottom: 4 }}>
+          <div style={{ fontSize: 11, color: t.successText, marginBottom: 4 }}>
             Start
           </div>
           <div style={{ fontSize: 14, fontWeight: 700 }}>
@@ -96,13 +100,13 @@ export default function ResultsPage({
               key={stop.id}
               style={{
                 borderRadius: 16,
-                border: "1px solid rgba(255,255,255,0.08)",
-                background: "rgba(15,23,42,0.8)",
+                border: `1px solid ${t.nestedBorder}`,
+                background: t.nestedBg,
                 padding: 12,
                 opacity: stop.done ? 0.72 : 1,
               }}
             >
-              <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>
+              <div style={{ fontSize: 11, color: t.textSubtle, marginBottom: 4 }}>
                 Stop {i + 1}
               </div>
 
@@ -131,9 +135,9 @@ export default function ResultsPage({
                   rel="noreferrer"
                   style={{
                     borderRadius: 10,
-                    border: "1px solid rgba(34,211,238,0.22)",
-                    background: "rgba(6,182,212,0.12)",
-                    color: "#67e8f9",
+                    border: `1px solid ${t.cyanBorder}`,
+                    background: t.cyanBg,
+                    color: t.cyanText,
                     padding: "8px 10px",
                     fontSize: 12,
                     fontWeight: 700,
@@ -146,9 +150,9 @@ export default function ResultsPage({
                 <div
                   style={{
                     borderRadius: 10,
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    background: "rgba(255,255,255,0.05)",
-                    color: "#e2e8f0",
+                    border: `1px solid ${t.subtleBorder}`,
+                    background: t.subtleBg,
+                    color: t.subtleText,
                     padding: "8px 10px",
                     fontSize: 12,
                     fontWeight: 700,
@@ -159,21 +163,28 @@ export default function ResultsPage({
 
                 <button
                   type="button"
-                  onClick={() => toggleStopDone(stop.id)}
+                  onClick={() =>
+                    stop.done
+                      ? toggleStopDone(stop.id)
+                      : captureSignature(stop)
+                  }
                   style={{
                     borderRadius: 10,
                     border: stop.done
-                      ? "1px solid rgba(34,197,94,0.30)"
-                      : "1px solid rgba(255,255,255,0.08)",
-                    background: stop.done
-                      ? "rgba(22,163,74,0.18)"
-                      : "rgba(255,255,255,0.05)",
-                    color: stop.done ? "#86efac" : "#e2e8f0",
+                      ? `1px solid ${t.successBorder}`
+                      : `1px solid ${t.subtleBorder}`,
+                    background: stop.done ? t.successBg : t.subtleBg,
+                    color: stop.done ? t.successText : t.subtleText,
                     padding: "8px 10px",
                     fontSize: 12,
                     fontWeight: 700,
                     cursor: "pointer",
                   }}
+                  title={
+                    stop.done
+                      ? "Tap to undo"
+                      : "Capture signature & mark delivered"
+                  }
                 >
                   {stop.done ? "Done ✓" : "Done"}
                 </button>
@@ -185,13 +196,13 @@ export default function ResultsPage({
         <div
           style={{
             borderRadius: 14,
-            border: "1px solid rgba(59,130,246,0.2)",
-            background: "rgba(30,64,175,0.12)",
+            border: `1px solid ${t.infoBorder}`,
+            background: t.infoBg,
             padding: 12,
             marginTop: 10,
           }}
         >
-          <div style={{ fontSize: 11, color: "#93c5fd", marginBottom: 4 }}>
+          <div style={{ fontSize: 11, color: t.infoText, marginBottom: 4 }}>
             End
           </div>
           <div style={{ fontSize: 14, fontWeight: 700 }}>
@@ -212,8 +223,8 @@ export default function ResultsPage({
               justifyContent: "center",
               gap: 8,
               borderRadius: 22,
-              background: "linear-gradient(90deg, #22d3ee 0%, #3b82f6 100%)",
-              color: "#020617",
+              background: t.accentGrad,
+              color: t.accentText,
               padding: "16px 18px",
               fontSize: 15,
               fontWeight: 800,
