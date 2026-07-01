@@ -1,5 +1,6 @@
 import React from "react";
 import { useTheme } from "./theme";
+import { useIsMobile } from "./useIsMobile";
 import RouteRxLogo from "./RouteRxLogo";
 
 function SuggestionDropdown({ suggestions, onPick }) {
@@ -74,6 +75,7 @@ export default function InputPage({
   stopMapsLink,
 }) {
   const { t } = useTheme();
+  const isMobile = useIsMobile();
 
   const sectionCard = {
     marginBottom: 16,
@@ -120,8 +122,14 @@ export default function InputPage({
             gap: 12,
           }}
         >
-          <RouteRxLogo size={40} />
-          <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: -0.8 }}>
+          <RouteRxLogo size={isMobile ? 34 : 40} />
+          <div
+            style={{
+              fontSize: isMobile ? 26 : 30,
+              fontWeight: 800,
+              letterSpacing: -0.8,
+            }}
+          >
             RouteRx
           </div>
         </div>
@@ -286,7 +294,9 @@ export default function InputPage({
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1fr 120px 90px",
+                  gridTemplateColumns: isMobile
+                    ? "1fr 1fr"
+                    : "1fr 120px 90px",
                   gap: 8,
                   marginTop: 10,
                 }}
@@ -308,6 +318,7 @@ export default function InputPage({
                     fontSize: 13,
                     fontWeight: 700,
                     textDecoration: "none",
+                    gridColumn: isMobile ? "1 / -1" : "auto",
                   }}
                 >
                   Navigate

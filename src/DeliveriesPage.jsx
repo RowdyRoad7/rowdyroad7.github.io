@@ -3,6 +3,7 @@ import { collection, getDocs, orderBy, query } from "firebase/firestore";
 import { db } from "./firebase";
 import { useTheme } from "./theme";
 import { useAuth } from "./auth";
+import { useIsMobile } from "./useIsMobile";
 import DelRxLogo from "./DelRxLogo";
 
 function todayISO() {
@@ -58,6 +59,7 @@ function StatCard({ label, value }) {
 
 function RecordsCard({ user }) {
   const { t } = useTheme();
+  const isMobile = useIsMobile();
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -316,6 +318,79 @@ function RecordsCard({ user }) {
           {records.length === 0
             ? "No deliveries recorded yet."
             : "No deliveries match the selected date range."}
+        </div>
+      ) : isMobile ? (
+        <div style={{ display: "grid", gap: 10 }}>
+          {filtered.map((r) => {
+            const ok = r.delivered === "yes";
+            return (
+              <div
+                key={r.id}
+                style={{
+                  borderRadius: 14,
+                  border: `1px solid ${t.nestedBorder}`,
+                  background: t.nestedBg,
+                  padding: 12,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    gap: 10,
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700 }}>
+                      {r.address || "—"}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: t.textMuted,
+                        marginTop: 4,
+                      }}
+                    >
+                      {formatDate(recordDate(r))}
+                      {r.rxNo ? ` · Rx ${r.rxNo}` : ""}
+                    </div>
+                  </div>
+                  {r.signature ? (
+                    <img
+                      src={r.signature}
+                      alt="signature"
+                      style={{
+                        width: 84,
+                        height: 40,
+                        objectFit: "contain",
+                        background: t.sigPadBg,
+                        borderRadius: 8,
+                        border: `1px solid ${t.nestedBorder}`,
+                        flexShrink: 0,
+                      }}
+                    />
+                  ) : null}
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  <span
+                    style={{
+                      display: "inline-block",
+                      borderRadius: 999,
+                      padding: "3px 10px",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      border: `1px solid ${ok ? t.successBorder : t.dangerBorder}`,
+                      background: ok ? t.successBg : t.dangerBg,
+                      color: ok ? t.successText : t.dangerText,
+                    }}
+                  >
+                    {ok ? "Delivered" : "Not delivered"}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div

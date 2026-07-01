@@ -7,6 +7,7 @@ import DelRxLogo from "./DelRxLogo";
 import AuthPage from "./AuthPage";
 import { useTheme } from "./theme";
 import { useAuth } from "./auth";
+import { useIsMobile } from "./useIsMobile";
 
 const MAX_STOPS = 25;
 const STORAGE_KEY = "kush-route-planner-google-v1";
@@ -141,6 +142,7 @@ async function computeOptimizedRoute(
 export default function App() {
   const { t, mode, toggleTheme } = useTheme();
   const { user, ready, logout } = useAuth();
+  const isMobile = useIsMobile();
   const [page, setPage] = useState("form");
   const [signatureStop, setSignatureStop] = useState(null);
   const [sessionToken, setSessionToken] = useState(safeId());
@@ -644,7 +646,7 @@ export default function App() {
       style={{
         minHeight: "100vh",
         background: t.pageBg,
-        padding: "24px 16px",
+        padding: isMobile ? "14px 10px" : "24px 16px",
         color: t.text,
         fontFamily: "Inter, system-ui, sans-serif",
         transition: "background 0.2s ease, color 0.2s ease",
