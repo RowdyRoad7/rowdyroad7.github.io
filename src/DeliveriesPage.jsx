@@ -38,19 +38,26 @@ function formatDate(iso) {
 
 function StatCard({ label, value }) {
   const { t } = useTheme();
+  const isMobile = useIsMobile();
   return (
     <div
       style={{
-        flex: 1,
-        minWidth: 120,
-        borderRadius: 14,
+        borderRadius: 12,
         border: `1px solid ${t.nestedBorder}`,
         background: t.nestedBg,
-        padding: "12px 14px",
+        padding: isMobile ? "8px 10px" : "12px 14px",
       }}
     >
-      <div style={{ fontSize: 22, fontWeight: 800 }}>{value}</div>
-      <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>
+      <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 800 }}>
+        {value}
+      </div>
+      <div
+        style={{
+          fontSize: isMobile ? 10 : 11,
+          color: t.textMuted,
+          marginTop: 2,
+        }}
+      >
         {label}
       </div>
     </div>
@@ -126,26 +133,94 @@ function RecordsCard({ user }) {
     setFrom(days === 0 ? todayISO() : shiftISO(-(days - 1)));
   }
 
-  function exportCsv() {
-    const header = ["Date", "Address", "Rx Number", "Status", "Signature"];
-    const rows = filtered.map((r) => [
-      recordDate(r),
-      r.address || "",
-      r.rxNo || "",
-      r.delivered || "",
-      r.signature || "",
-    ]);
-    const escape = (v) => `"${String(v).replace(/"/g, '""')}"`;
-    const csv = [header, ...rows]
-      .map((row) => row.map(escape).join(","))
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `deliveries-${todayISO()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  function exportReport() {
+    const esc = (v) =>
+      String(v ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+
+    const range =
+      from || to
+        ? `${from ? formatDate(from) : "start"} – ${to ? formatDate(to) : "today"}`
+        : "All dates";
+
+    const rowsHtml = filtered
+      .map((r) => {
+        const ok = r.delivered === "yes";
+        const sig = r.signature
+          ? `<img class="sig" src="${esc(r.signature)}" alt="signature" />`
+          : "<span class=\"muted\">No signature</span>";
+        return `<tr>
+          <td class="nowrap">${esc(formatDate(recordDate(r)))}</td>
+          <td>${esc(r.address || "—")}</td>
+          <td class="nowrap">${esc(r.rxNo || "—")}</td>
+          <td class="nowrap"><span class="badge ${ok ? "ok" : "no"}">${ok ? "Delivered" : "Not delivered"}</span></td>
+          <td>${sig}</td>
+        </tr>`;
+      })
+      .join("");
+
+    const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DelRx — Delivery Signatures (${esc(range)})</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: Inter, system-ui, Arial, sans-serif; color: #0f172a; margin: 32px; }
+  header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 20px; }
+  h1 { font-size: 20px; margin: 0; }
+  .meta { font-size: 12px; color: #475569; text-align: right; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: #475569; border-bottom: 1px solid #cbd5e1; padding: 8px 10px; }
+  td { font-size: 13px; padding: 10px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
+  .nowrap { white-space: nowrap; }
+  .muted { color: #94a3b8; }
+  .sig { width: 180px; height: 70px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; }
+  .badge { display: inline-block; border-radius: 999px; padding: 2px 10px; font-size: 11px; font-weight: 700; }
+  .badge.ok { background: #dcfce7; color: #15803d; }
+  .badge.no { background: #fee2e2; color: #b91c1c; }
+  .print-btn { padding: 8px 16px; font-size: 13px; font-weight: 700; border: none; border-radius: 8px; background: #2563eb; color: #fff; cursor: pointer; }
+  @media print { .print-btn { display: none; } body { margin: 0; } }
+</style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>DelRx — Delivery Signatures</h1>
+      <div class="meta" style="text-align:left">${esc(range)} · ${filtered.length} record(s)</div>
+    </div>
+    <div class="meta">
+      Generated ${esc(formatDate(todayISO()))}<br/>
+      <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
+    </div>
+  </header>
+  <table>
+    <thead>
+      <tr><th>Date</th><th>Address</th><th>Rx&nbsp;#</th><th>Status</th><th>Signature</th></tr>
+    </thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>
+</body>
+</html>`;
+
+    const w = window.open("", "_blank");
+    if (w) {
+      w.document.write(html);
+      w.document.close();
+    } else {
+      // Popup blocked — download the report instead.
+      const blob = new Blob([html], { type: "text/html;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `delrx-signatures-${todayISO()}.html`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
   }
 
   const dateInput = {
@@ -223,7 +298,14 @@ function RecordsCard({ user }) {
       </div>
 
       {/* Summary */}
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: isMobile ? 8 : 10,
+          marginBottom: 14,
+        }}
+      >
         <StatCard label="Deliveries" value={stats.total} />
         <StatCard label="Signed off" value={stats.delivered} />
         <StatCard label="Addresses" value={stats.addresses} />
@@ -279,27 +361,34 @@ function RecordsCard({ user }) {
           </button>
         </div>
 
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+        <div
+          style={{
+            marginLeft: "auto",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            flexWrap: "wrap",
+          }}
+        >
           <span style={{ fontSize: 12, color: t.textMuted }}>
             {filtered.length} of {records.length}
           </span>
           <button
             type="button"
-            onClick={exportCsv}
+            onClick={exportReport}
             disabled={!filtered.length}
             style={{
               borderRadius: 10,
-              border: `1px solid ${t.cyanBorder}`,
-              background: t.cyanBg,
-              color: t.cyanText,
+              border: "none",
+              background: filtered.length ? t.accentGrad : t.subtleBg,
+              color: filtered.length ? t.accentText : t.textMuted,
               padding: "8px 12px",
               fontSize: 12,
               fontWeight: 700,
               cursor: filtered.length ? "pointer" : "not-allowed",
-              opacity: filtered.length ? 1 : 0.5,
             }}
           >
-            Export CSV
+            View / Print Signatures
           </button>
         </div>
       </div>
@@ -320,74 +409,79 @@ function RecordsCard({ user }) {
             : "No deliveries match the selected date range."}
         </div>
       ) : isMobile ? (
-        <div style={{ display: "grid", gap: 10 }}>
+        <div style={{ display: "grid", gap: 8 }}>
           {filtered.map((r) => {
             const ok = r.delivered === "yes";
             return (
               <div
                 key={r.id}
                 style={{
-                  borderRadius: 14,
+                  borderRadius: 12,
                   border: `1px solid ${t.nestedBorder}`,
                   background: t.nestedBg,
-                  padding: 12,
+                  padding: 10,
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "center",
                 }}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    gap: 10,
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700 }}>
-                      {r.address || "—"}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: t.textMuted,
-                        marginTop: 4,
-                      }}
-                    >
-                      {formatDate(recordDate(r))}
-                      {r.rxNo ? ` · Rx ${r.rxNo}` : ""}
-                    </div>
-                  </div>
-                  {r.signature ? (
-                    <img
-                      src={r.signature}
-                      alt="signature"
-                      style={{
-                        width: 84,
-                        height: 40,
-                        objectFit: "contain",
-                        background: t.sigPadBg,
-                        borderRadius: 8,
-                        border: `1px solid ${t.nestedBorder}`,
-                        flexShrink: 0,
-                      }}
-                    />
-                  ) : null}
-                </div>
-                <div style={{ marginTop: 8 }}>
-                  <span
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
                     style={{
-                      display: "inline-block",
-                      borderRadius: 999,
-                      padding: "3px 10px",
-                      fontSize: 11,
+                      fontSize: 13,
                       fontWeight: 700,
-                      border: `1px solid ${ok ? t.successBorder : t.dangerBorder}`,
-                      background: ok ? t.successBg : t.dangerBg,
-                      color: ok ? t.successText : t.dangerText,
+                      lineHeight: 1.3,
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
                     }}
                   >
-                    {ok ? "Delivered" : "Not delivered"}
-                  </span>
+                    {r.address || "—"}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: t.textMuted,
+                      marginTop: 3,
+                      display: "flex",
+                      gap: 6,
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <span>{formatDate(recordDate(r))}</span>
+                    {r.rxNo ? <span>· Rx {r.rxNo}</span> : null}
+                    <span
+                      style={{
+                        borderRadius: 999,
+                        padding: "1px 8px",
+                        fontSize: 10,
+                        fontWeight: 700,
+                        border: `1px solid ${ok ? t.successBorder : t.dangerBorder}`,
+                        background: ok ? t.successBg : t.dangerBg,
+                        color: ok ? t.successText : t.dangerText,
+                      }}
+                    >
+                      {ok ? "Delivered" : "Not delivered"}
+                    </span>
+                  </div>
                 </div>
+                {r.signature ? (
+                  <img
+                    src={r.signature}
+                    alt="signature"
+                    style={{
+                      width: 62,
+                      height: 34,
+                      objectFit: "contain",
+                      background: t.sigPadBg,
+                      borderRadius: 6,
+                      border: `1px solid ${t.nestedBorder}`,
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : null}
               </div>
             );
           })}
