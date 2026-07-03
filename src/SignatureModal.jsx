@@ -10,6 +10,36 @@ function todayISO() {
   return new Date(now.getTime() - offset).toISOString().slice(0, 10);
 }
 
+// Resize/compress a captured photo to a small JPEG data URL so it fits
+// inside a Firestore document alongside the signature.
+function fileToCompressedDataUrl(file, maxDim = 1024, quality = 0.6) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > height && width > maxDim) {
+        height = Math.round((height * maxDim) / width);
+        width = maxDim;
+      } else if (height >= width && height > maxDim) {
+        width = Math.round((width * maxDim) / height);
+        height = maxDim;
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not read the photo. Try a JPG or PNG."));
+    };
+    img.src = url;
+  });
+}
+
 function SignCanvas({ index, registerPad }) {
   const canvasRef = useRef(null);
 
@@ -59,7 +89,8 @@ export default function SignatureModal({ stop, onClose, onSaved }) {
   const { t } = useTheme();
   const orderCount = Math.max(1, Number(stop?.orders) || 1);
 
-  const [rxNos, setRxNos] = useState(() => Array(orderCount).fill(""));
+  const [photos, setPhotos] = useState(() => Array(orderCount).fill(""));
+  const [processing, setProcessing] = useState(false);
   const [date] = useState(todayISO());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -72,8 +103,24 @@ export default function SignatureModal({ stop, onClose, onSaved }) {
     else delete padsRef.current[i];
   }, []);
 
-  function setRxNo(i, value) {
-    setRxNos((prev) => prev.map((v, idx) => (idx === i ? value : v)));
+  function setPhoto(i, value) {
+    setPhotos((prev) => prev.map((v, idx) => (idx === i ? value : v)));
+  }
+
+  async function onPickPhoto(i, e) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file
+    if (!file) return;
+    setError("");
+    setProcessing(true);
+    try {
+      const dataUrl = await fileToCompressedDataUrl(file);
+      setPhoto(i, dataUrl);
+    } catch (err) {
+      setError(err.message || "Could not process the photo.");
+    } finally {
+      setProcessing(false);
+    }
   }
 
   function clearPad(i) {
@@ -84,6 +131,14 @@ export default function SignatureModal({ stop, onClose, onSaved }) {
     setError("");
 
     for (let i = 0; i < orderCount; i++) {
+      if (!photos[i]) {
+        setError(
+          orderCount > 1
+            ? `Please add a package photo for order ${i + 1}.`
+            : "Please add a package photo before saving.",
+        );
+        return;
+      }
       const pad = padsRef.current[i];
       if (!pad || pad.isEmpty()) {
         setError(
@@ -101,7 +156,7 @@ export default function SignatureModal({ stop, onClose, onSaved }) {
         Array.from({ length: orderCount }, (_, i) =>
           addDoc(collection(db, "deliveries"), {
             date,
-            rxNo: (rxNos[i] || "").trim(),
+            packagePhoto: photos[i],
             address,
             delivered: "yes",
             signature: padsRef.current[i].toDataURL(),
@@ -121,18 +176,6 @@ export default function SignatureModal({ stop, onClose, onSaved }) {
       setSaving(false);
     }
   }
-
-  const inputStyle = {
-    width: "100%",
-    boxSizing: "border-box",
-    borderRadius: 10,
-    border: `1px solid ${t.inputBorder}`,
-    background: t.inputBg,
-    color: t.text,
-    padding: "10px 12px",
-    fontSize: 14,
-    outline: "none",
-  };
 
   return (
     <div
@@ -253,15 +296,72 @@ export default function SignatureModal({ stop, onClose, onSaved }) {
                 marginBottom: 4,
               }}
             >
-              Rx Number
+              Package photo
             </label>
-            <input
-              type="text"
-              value={rxNos[i]}
-              onChange={(e) => setRxNo(i, e.target.value)}
-              placeholder="Enter Rx Number"
-              style={{ ...inputStyle, marginBottom: 12 }}
-            />
+            {photos[i] ? (
+              <div style={{ position: "relative", marginBottom: 12 }}>
+                <img
+                  src={photos[i]}
+                  alt="package"
+                  style={{
+                    width: "100%",
+                    maxHeight: 200,
+                    objectFit: "contain",
+                    borderRadius: 10,
+                    border: `1px solid ${t.inputBorder}`,
+                    background: t.sigPadBg,
+                    display: "block",
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setPhoto(i, "")}
+                  style={{
+                    position: "absolute",
+                    top: 8,
+                    right: 8,
+                    borderRadius: 8,
+                    border: "none",
+                    background: "rgba(2,6,23,0.7)",
+                    color: "#fff",
+                    padding: "5px 10px",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Retake
+                </button>
+              </div>
+            ) : (
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  borderRadius: 10,
+                  border: `1px dashed ${t.inputBorder}`,
+                  background: t.inputBg,
+                  color: t.text,
+                  padding: "14px 12px",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: processing ? "default" : "pointer",
+                  marginBottom: 12,
+                }}
+              >
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(e) => onPickPhoto(i, e)}
+                  disabled={processing}
+                  style={{ display: "none" }}
+                />
+                {processing ? "Processing photo…" : "📷 Take / Upload package photo"}
+              </label>
+            )}
 
             <div
               style={{

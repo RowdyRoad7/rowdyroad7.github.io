@@ -152,10 +152,15 @@ function RecordsCard({ user }) {
         const sig = r.signature
           ? `<img class="sig" src="${esc(r.signature)}" alt="signature" />`
           : "<span class=\"muted\">No signature</span>";
+        const pkg = r.packagePhoto
+          ? `<img class="pkg" src="${esc(r.packagePhoto)}" alt="package" />`
+          : r.rxNo
+            ? `Rx ${esc(r.rxNo)}`
+            : "<span class=\"muted\">—</span>";
         return `<tr>
           <td class="nowrap">${esc(formatDate(recordDate(r)))}</td>
           <td>${esc(r.address || "—")}</td>
-          <td class="nowrap">${esc(r.rxNo || "—")}</td>
+          <td>${pkg}</td>
           <td class="nowrap"><span class="badge ${ok ? "ok" : "no"}">${ok ? "Delivered" : "Not delivered"}</span></td>
           <td>${sig}</td>
         </tr>`;
@@ -180,6 +185,7 @@ function RecordsCard({ user }) {
   .nowrap { white-space: nowrap; }
   .muted { color: #94a3b8; }
   .sig { width: 180px; height: 70px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; }
+  .pkg { width: 110px; height: 80px; object-fit: cover; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; }
   .badge { display: inline-block; border-radius: 999px; padding: 2px 10px; font-size: 11px; font-weight: 700; }
   .badge.ok { background: #dcfce7; color: #15803d; }
   .badge.no { background: #fee2e2; color: #b91c1c; }
@@ -190,7 +196,7 @@ function RecordsCard({ user }) {
 <body>
   <header>
     <div>
-      <h1>DelRx — Delivery Signatures</h1>
+      <h1>DelRx — Delivery Proof</h1>
       <div class="meta" style="text-align:left">${esc(range)} · ${filtered.length} record(s)</div>
     </div>
     <div class="meta">
@@ -200,7 +206,7 @@ function RecordsCard({ user }) {
   </header>
   <table>
     <thead>
-      <tr><th>Date</th><th>Address</th><th>Rx&nbsp;#</th><th>Status</th><th>Signature</th></tr>
+      <tr><th>Date</th><th>Address</th><th>Package</th><th>Status</th><th>Signature</th></tr>
     </thead>
     <tbody>${rowsHtml}</tbody>
   </table>
@@ -451,7 +457,9 @@ function RecordsCard({ user }) {
                     }}
                   >
                     <span>{formatDate(recordDate(r))}</span>
-                    {r.rxNo ? <span>· Rx {r.rxNo}</span> : null}
+                    {!r.packagePhoto && r.rxNo ? (
+                      <span>· Rx {r.rxNo}</span>
+                    ) : null}
                     <span
                       style={{
                         borderRadius: 999,
@@ -467,21 +475,36 @@ function RecordsCard({ user }) {
                     </span>
                   </div>
                 </div>
-                {r.signature ? (
-                  <img
-                    src={r.signature}
-                    alt="signature"
-                    style={{
-                      width: 62,
-                      height: 34,
-                      objectFit: "contain",
-                      background: t.sigPadBg,
-                      borderRadius: 6,
-                      border: `1px solid ${t.nestedBorder}`,
-                      flexShrink: 0,
-                    }}
-                  />
-                ) : null}
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  {r.packagePhoto ? (
+                    <img
+                      src={r.packagePhoto}
+                      alt="package"
+                      style={{
+                        width: 46,
+                        height: 40,
+                        objectFit: "cover",
+                        background: t.sigPadBg,
+                        borderRadius: 6,
+                        border: `1px solid ${t.nestedBorder}`,
+                      }}
+                    />
+                  ) : null}
+                  {r.signature ? (
+                    <img
+                      src={r.signature}
+                      alt="signature"
+                      style={{
+                        width: 62,
+                        height: 40,
+                        objectFit: "contain",
+                        background: t.sigPadBg,
+                        borderRadius: 6,
+                        border: `1px solid ${t.nestedBorder}`,
+                      }}
+                    />
+                  ) : null}
+                </div>
               </div>
             );
           })}
@@ -500,7 +523,7 @@ function RecordsCard({ user }) {
                 <tr>
                   <th style={th}>Date</th>
                   <th style={th}>Address</th>
-                  <th style={th}>Rx #</th>
+                  <th style={th}>Package</th>
                   <th style={th}>Status</th>
                   <th style={{ ...th, textAlign: "right" }}>Signature</th>
                 </tr>
@@ -521,7 +544,26 @@ function RecordsCard({ user }) {
                       <td style={{ ...td, fontWeight: 600 }}>
                         {r.address || "—"}
                       </td>
-                      <td style={td}>{r.rxNo || "—"}</td>
+                      <td style={td}>
+                        {r.packagePhoto ? (
+                          <img
+                            src={r.packagePhoto}
+                            alt="package"
+                            style={{
+                              width: 64,
+                              height: 44,
+                              objectFit: "cover",
+                              background: t.sigPadBg,
+                              borderRadius: 8,
+                              border: `1px solid ${t.nestedBorder}`,
+                            }}
+                          />
+                        ) : r.rxNo ? (
+                          `Rx ${r.rxNo}`
+                        ) : (
+                          <span style={{ color: t.textSubtle }}>—</span>
+                        )}
+                      </td>
                       <td style={td}>
                         <span
                           style={{
