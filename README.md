@@ -33,3 +33,27 @@ A mobile-first route planning and proof-of-delivery app for drivers. **RouteRx**
 - Deployed to **GitHub Pages** via GitHub Actions
 
 ## Project Structure
+
+src/
+├── App.jsx # Route state, Google Places/Routes API calls, page routing
+├── InputPage.jsx # RouteRx: start/end/stops form with autocomplete
+├── ResultsPage.jsx # RouteRx: optimized stop order, navigation links
+├── DeliveriesPage.jsx # DelRx: records dashboard, filters, export
+├── SignatureModal.jsx # DelRx: signature pad + package photo capture
+├── AuthPage.jsx # Firebase email/password + Google sign-in
+├── auth.jsx # Auth context/hook
+├── firebase.js # Firebase app/auth/Firestore init
+├── theme.jsx # Light/dark theme context
+├── useIsMobile.js # Responsive layout hook
+├── RouteRxLogo.jsx / DelRxLogo.jsx
+firestore.rules # Firestore security rules for the deliveries collection
+
+
+## Getting Started
+### Prerequisites
+- Node.js 20+
+- A Firebase project with **Authentication** (Email/Password + Google providers) and **Firestore** enabled
+- A Google Cloud project with the **Places API (New)** and **Routes API** enabled
+### Installation
+```bash
+npm install
