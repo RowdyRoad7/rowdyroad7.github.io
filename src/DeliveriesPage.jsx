@@ -36,6 +36,84 @@ function formatDate(iso) {
   });
 }
 
+function ImageLightbox({ src, label, onClose }) {
+  const { t } = useTheme();
+
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 60,
+        background: "rgba(2,6,23,0.82)",
+        backdropFilter: "blur(4px)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+      }}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        style={{
+          position: "absolute",
+          top: 16,
+          right: 16,
+          borderRadius: 10,
+          border: "1px solid rgba(255,255,255,0.2)",
+          background: "rgba(255,255,255,0.08)",
+          color: "#fff",
+          width: 36,
+          height: 36,
+          fontSize: 18,
+          cursor: "pointer",
+        }}
+      >
+        ×
+      </button>
+      <img
+        src={src}
+        alt={label}
+        style={{
+          maxWidth: "min(90vw, 720px)",
+          maxHeight: "78vh",
+          objectFit: "contain",
+          borderRadius: 12,
+          background: t.sigPadBg,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+        }}
+      />
+      {label ? (
+        <div
+          style={{
+            marginTop: 14,
+            fontSize: 13,
+            fontWeight: 700,
+            color: "#e2e8f0",
+          }}
+        >
+          {label}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function StatCard({ label, value }) {
   const { t } = useTheme();
   const isMobile = useIsMobile();
@@ -72,6 +150,7 @@ function RecordsCard({ user }) {
   const [error, setError] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [lightbox, setLightbox] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -480,6 +559,12 @@ function RecordsCard({ user }) {
                     <img
                       src={r.packagePhoto}
                       alt="package"
+                      onClick={() =>
+                        setLightbox({
+                          src: r.packagePhoto,
+                          label: `${r.address || "Package"} · ${formatDate(recordDate(r))}`,
+                        })
+                      }
                       style={{
                         width: 46,
                         height: 40,
@@ -487,6 +572,7 @@ function RecordsCard({ user }) {
                         background: t.sigPadBg,
                         borderRadius: 6,
                         border: `1px solid ${t.nestedBorder}`,
+                        cursor: "pointer",
                       }}
                     />
                   ) : null}
@@ -494,6 +580,12 @@ function RecordsCard({ user }) {
                     <img
                       src={r.signature}
                       alt="signature"
+                      onClick={() =>
+                        setLightbox({
+                          src: r.signature,
+                          label: `Signature · ${r.address || ""} · ${formatDate(recordDate(r))}`,
+                        })
+                      }
                       style={{
                         width: 62,
                         height: 40,
@@ -501,6 +593,7 @@ function RecordsCard({ user }) {
                         background: t.sigPadBg,
                         borderRadius: 6,
                         border: `1px solid ${t.nestedBorder}`,
+                        cursor: "pointer",
                       }}
                     />
                   ) : null}
@@ -549,6 +642,12 @@ function RecordsCard({ user }) {
                           <img
                             src={r.packagePhoto}
                             alt="package"
+                            onClick={() =>
+                              setLightbox({
+                                src: r.packagePhoto,
+                                label: `${r.address || "Package"} · ${formatDate(recordDate(r))}`,
+                              })
+                            }
                             style={{
                               width: 64,
                               height: 44,
@@ -556,6 +655,7 @@ function RecordsCard({ user }) {
                               background: t.sigPadBg,
                               borderRadius: 8,
                               border: `1px solid ${t.nestedBorder}`,
+                              cursor: "pointer",
                             }}
                           />
                         ) : r.rxNo ? (
@@ -585,6 +685,12 @@ function RecordsCard({ user }) {
                           <img
                             src={r.signature}
                             alt="signature"
+                            onClick={() =>
+                              setLightbox({
+                                src: r.signature,
+                                label: `Signature · ${r.address || ""} · ${formatDate(recordDate(r))}`,
+                              })
+                            }
                             style={{
                               width: 96,
                               height: 44,
@@ -592,6 +698,7 @@ function RecordsCard({ user }) {
                               background: t.sigPadBg,
                               borderRadius: 8,
                               border: `1px solid ${t.nestedBorder}`,
+                              cursor: "pointer",
                             }}
                           />
                         ) : (
@@ -606,6 +713,14 @@ function RecordsCard({ user }) {
           </div>
         </div>
       )}
+
+      {lightbox ? (
+        <ImageLightbox
+          src={lightbox.src}
+          label={lightbox.label}
+          onClose={() => setLightbox(null)}
+        />
+      ) : null}
     </div>
   );
 }
