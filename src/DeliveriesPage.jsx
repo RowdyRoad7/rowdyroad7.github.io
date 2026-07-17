@@ -269,7 +269,8 @@ function RecordsCard({ user }) {
   .badge.ok { background: #dcfce7; color: #15803d; }
   .badge.no { background: #fee2e2; color: #b91c1c; }
   .print-btn { padding: 8px 16px; font-size: 13px; font-weight: 700; border: none; border-radius: 8px; background: #2563eb; color: #fff; cursor: pointer; }
-  @media print { .print-btn { display: none; } body { margin: 0; } }
+  .back-btn { padding: 8px 16px; font-size: 13px; font-weight: 700; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #0f172a; cursor: pointer; margin-right: 8px; }
+  @media print { .print-btn, .back-btn { display: none; } body { margin: 0; } }
 </style>
 </head>
 <body>
@@ -280,6 +281,7 @@ function RecordsCard({ user }) {
     </div>
     <div class="meta">
       Generated ${esc(formatDate(todayISO()))}<br/>
+      <button class="back-btn" onclick="window.close()">← Back</button>
       <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
     </div>
   </header>
